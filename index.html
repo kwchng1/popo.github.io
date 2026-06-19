@@ -52,6 +52,7 @@
         .modal-content h3 { margin-top: 0; margin-bottom: 20px; }
         .source-options { display: flex; flex-direction: column; gap: 12px; }
         .btn-option { background-color: #f2f2f7 !important; color: #007aff !important; box-shadow: none !important; }
+        .btn-option:active { background-color: #e5e5ea !important; }
         
         /* 輸入框樣式 */
         .fare-input {
@@ -119,6 +120,14 @@
     let currentTripData = {};
     let allRecords = JSON.parse(localStorage.getItem('taxi_records')) || [];
 
+    // 從本地快取檢查有沒有做到一半的單，並回復步驟
+    let savedStep = localStorage.getItem('taxi_current_step');
+    let savedTripData = localStorage.getItem('taxi_current_trip_data');
+    if (savedStep && savedTripData) {
+        currentStep = parseInt(savedStep);
+        currentTripData = JSON.parse(savedTripData);
+    }
+
     function updateUI() {
         document.getElementById('btn-order').disabled = (currentStep !== 1);
         document.getElementById('btn-arrive').disabled = (currentStep !== 2);
@@ -126,6 +135,16 @@
         document.getElementById('btn-finish').disabled = (currentStep !== 4);
         document.getElementById('log-count').innerText = `目前已儲存: ${allRecords.length} 條完整紀錄`;
         generateTextRecords();
+    }
+
+    function saveCurrentState() {
+        localStorage.setItem('taxi_current_step', currentStep);
+        localStorage.setItem('taxi_current_trip_data', JSON.stringify(currentTripData));
+    }
+
+    function clearCurrentState() {
+        localStorage.removeItem('taxi_current_step');
+        localStorage.removeItem('taxi_current_trip_data');
     }
 
     function recordStatus(step, statusName) {
@@ -154,13 +173,13 @@
                     document.getElementById('source-modal').style.display = 'flex';
                 } else if (step < 4) {
                     currentStep++;
+                    saveCurrentState();
                     updateUI();
                 } else {
-                    // 到達目的地定位完成，彈出輸入收入視窗
                     document.getElementById('fare-modal').style.display = 'flex';
                     const fareInput = document.getElementById('input-fare');
                     fareInput.value = '';
-                    setTimeout(() => fareInput.focus(), 100); // 自動聚焦方便輸入
+                    setTimeout(() => fareInput.focus(), 100);
                 }
             },
             (error) => {
@@ -177,32 +196,40 @@
     function selectSource(sourceName) {
         currentTripData['訂單來源'] = sourceName;
         document.getElementById('source-modal').style.display = 'none';
-        currentStep = 2;
+        
+        if (sourceName === '街客') {
+            // UX 優化：街客直接跳關到第四步「到達目的地」
+            // 自動將「接單時間和地點」複製給「到達起點」和「開車」
+            currentTripData['到達起點時間'] = currentTripData['接單時間'];
+            currentTripData['到達起點地點'] = currentTripData['接單地點'];
+            currentTripData['開車時間'] = currentTripData['接單時間'];
+            currentTripData['開車地點'] = currentTripData['接單地點'];
+            
+            currentStep = 4; // 直接解鎖第四步
+        } else {
+            currentStep = 2; // 網約車照常走第二步
+        }
+        
+        saveCurrentState();
         updateUI();
     }
 
-    // 提交收入金額並正式儲存訂單
     function submitFare() {
         const fareValue = document.getElementById('input-fare').value;
-        
-        // 如果沒輸入，預設為 0
         currentTripData['收入'] = fareValue ? parseFloat(fareValue) : 0;
         
-        // 隱藏彈窗
         document.getElementById('fare-modal').style.display = 'none';
         
-        // 儲存整筆訂單
         allRecords.push({...currentTripData});
         localStorage.setItem('taxi_records', JSON.stringify(allRecords));
         
-        // 重置狀態
         currentTripData = {};
         currentStep = 1;
+        clearCurrentState();
         alert('本單紀錄完成，營收已儲存！');
         updateUI();
     }
 
-    // 生成給 AI 分析的格式（加入收入金額）
     function generateTextRecords() {
         let output = "";
         allRecords.forEach((row, index) => {
@@ -215,7 +242,7 @@
             output += `開車地點: ${row['開車地點'] || ''}\n`;
             output += `到達目的地時間: ${row['到達目的地時間'] || ''}\n`;
             output += `到達目的地地點: ${row['到達目的地地點'] || ''}\n`;
-            output += `收入: $${row['收入'] !== undefined ? row['收入'] : 0}\n\n`; // 最底一行的收入
+            output += `收入: $${row['收入'] !== undefined ? row['收入'] : 0}\n\n`;
         });
         document.getElementById('txt-records').value = output.trim();
     }
@@ -234,6 +261,7 @@
             localStorage.removeItem('taxi_records');
             currentTripData = {};
             currentStep = 1;
+            clearCurrentState();
             document.getElementById('record-box').style.display = 'none';
             updateUI();
             alert('紀錄已清空，祝收工愉快！');
