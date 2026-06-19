@@ -43,6 +43,15 @@
         button:disabled { background-color: #e5e5ea; color: #aeaeae; cursor: not-allowed; }
         #btn-finish:not(:disabled) { background-color: var(--success); box-shadow: 0 4px 10px rgba(52, 199, 89, 0.3); }
         
+        /* 取消訂單按鈕專用樣式 */
+        .btn-cancel-order {
+            background-color: var(--danger) !important;
+            box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3) !important;
+            margin-top: 5px;
+            margin-bottom: 20px;
+            display: none; /* 預設隱藏，有單進行中才顯示 */
+        }
+        
         /* 彈出視窗樣式 */
         .modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -80,6 +89,8 @@
         <button id="btn-arrive" onclick="recordStatus(2, '到達起點')" disabled>2. 到達起點</button>
         <button id="btn-start" onclick="recordStatus(3, '開車')" disabled>3. 開車</button>
         <button id="btn-finish" onclick="recordStatus(4, '到達目的地')" disabled>4. 到達目的地</button>
+        
+        <button id="btn-cancel-trip" class="btn-cancel-order" onclick="cancelCurrentTrip()">取消當前訂單</button>
     </div>
 
     <div class="admin-section">
@@ -120,7 +131,7 @@
     let currentTripData = {};
     let allRecords = JSON.parse(localStorage.getItem('taxi_records')) || [];
 
-    // 從本地快取檢查有沒有做到一半的單，並回復步驟
+    // 從本地快取檢查有沒有做到一半的單
     let savedStep = localStorage.getItem('taxi_current_step');
     let savedTripData = localStorage.getItem('taxi_current_trip_data');
     if (savedStep && savedTripData) {
@@ -133,6 +144,14 @@
         document.getElementById('btn-arrive').disabled = (currentStep !== 2);
         document.getElementById('btn-start').disabled = (currentStep !== 3);
         document.getElementById('btn-finish').disabled = (currentStep !== 4);
+        
+        // 控制「取消當前訂單」按鈕的顯示：只要進行到第2、3、4步，就顯示出來
+        if (currentStep > 1) {
+            document.getElementById('btn-cancel-trip').style.display = 'block';
+        } else {
+            document.getElementById('btn-cancel-trip').style.display = 'none';
+        }
+        
         document.getElementById('log-count').innerText = `目前已儲存: ${allRecords.length} 條完整紀錄`;
         generateTextRecords();
     }
@@ -198,20 +217,29 @@
         document.getElementById('source-modal').style.display = 'none';
         
         if (sourceName === '街客') {
-            // UX 優化：街客直接跳關到第四步「到達目的地」
-            // 自動將「接單時間和地點」複製給「到達起點」和「開車」
             currentTripData['到達起點時間'] = currentTripData['接單時間'];
             currentTripData['到達起點地點'] = currentTripData['接單地點'];
             currentTripData['開車時間'] = currentTripData['接單時間'];
             currentTripData['開車地點'] = currentTripData['接單地點'];
-            
-            currentStep = 4; // 直接解鎖第四步
+            currentStep = 4;
         } else {
-            currentStep = 2; // 網約車照常走第二步
+            currentStep = 2;
         }
         
         saveCurrentState();
         updateUI();
+    }
+
+    // 中途取消訂單功能
+    function cancelCurrentTrip() {
+        const check = confirm("❌ 確定要取消當前這筆訂單嗎？\n此訂單的數據將會被捨棄，且不作任何歷史紀錄。");
+        if (check) {
+            currentTripData = {};
+            currentStep = 1;
+            clearCurrentState();
+            updateUI();
+            alert('當前訂單已取消，已重置回接單狀態。');
+        }
     }
 
     function submitFare() {
