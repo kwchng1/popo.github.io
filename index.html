@@ -49,7 +49,7 @@
             box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3) !important;
             margin-top: 5px;
             margin-bottom: 20px;
-            display: none; /* 預設隱藏，有單進行中才顯示 */
+            display: none;
         }
         
         /* 彈出視窗樣式 */
@@ -64,8 +64,8 @@
         .btn-option:active { background-color: #e5e5ea !important; }
         
         /* 輸入框樣式 */
-        .fare-input {
-            width: 100%; font-size: 24px; padding: 12px; text-align: center; border: 1px solid #d1d1d6;
+        .custom-input {
+            width: 100%; font-size: 20px; padding: 12px; text-align: center; border: 1px solid #d1d1d6;
             border-radius: 8px; margin-bottom: 20px; box-sizing: border-box; -webkit-appearance: none;
         }
 
@@ -107,21 +107,33 @@
     </div>
 </div>
 
+<!-- 訂單來源選擇彈窗 -->
 <div id="source-modal" class="modal">
     <div class="modal-content">
         <h3>請選擇訂單來源</h3>
         <div class="source-options">
+            <button class="btn-option" style="background-color: #e5f1ff !important; font-weight: bold;" onclick="selectSource('街客')">街客 (直接跳關)</button>
             <button class="btn-option" onclick="selectSource('Uber')">Uber</button>
             <button class="btn-option" onclick="selectSource('高德')">高德</button>
-            <button class="btn-option" onclick="selectSource('街客')">街客</button>
+            <button class="btn-option" style="color: #636366 !important;" onclick="openCustomSourceModal()">其他...</button>
         </div>
     </div>
 </div>
 
+<!-- 自訂平台輸入彈窗 -->
+<div id="custom-source-modal" class="modal">
+    <div class="modal-content">
+        <h3>輸入平台名稱</h3>
+        <input type="text" id="input-custom-source" class="custom-input" placeholder="其他" value="其他">
+        <button onclick="submitCustomSource()">確定</button>
+    </div>
+</div>
+
+<!-- 收入輸入彈窗 -->
 <div id="fare-modal" class="modal">
     <div class="modal-content">
         <h3>輸入本單收入 ($)</h3>
-        <input type="number" id="input-fare" class="fare-input" pattern="[0-9]*" inputmode="numeric" placeholder="0" min="0">
+        <input type="number" id="input-fare" class="custom-input" pattern="[0-9]*" inputmode="numeric" placeholder="0" min="0">
         <button onclick="submitFare()">確定儲存</button>
     </div>
 </div>
@@ -131,7 +143,6 @@
     let currentTripData = {};
     let allRecords = JSON.parse(localStorage.getItem('taxi_records')) || [];
 
-    // 從本地快取檢查有沒有做到一半的單
     let savedStep = localStorage.getItem('taxi_current_step');
     let savedTripData = localStorage.getItem('taxi_current_trip_data');
     if (savedStep && savedTripData) {
@@ -145,7 +156,6 @@
         document.getElementById('btn-start').disabled = (currentStep !== 3);
         document.getElementById('btn-finish').disabled = (currentStep !== 4);
         
-        // 控制「取消當前訂單」按鈕的顯示：只要進行到第2、3、4步，就顯示出來
         if (currentStep > 1) {
             document.getElementById('btn-cancel-trip').style.display = 'block';
         } else {
@@ -230,7 +240,29 @@
         updateUI();
     }
 
-    // 中途取消訂單功能
+    // 打開自訂平台彈窗
+    function openCustomSourceModal() {
+        document.getElementById('source-modal').style.display = 'none';
+        document.getElementById('custom-source-modal').style.display = 'flex';
+        const input = document.getElementById('input-custom-source');
+        input.value = '其他'; // 預設顯示其他
+        setTimeout(() => {
+            input.focus();
+            input.select(); // 自動全選，方便直接打字覆蓋
+        }, 100);
+    }
+
+    // 提交自訂平台名稱
+    function submitCustomSource() {
+        const customValue = document.getElementById('input-custom-source').value.trim();
+        const finalSource = customValue ? customValue : '其他';
+        
+        document.getElementById('custom-source-modal').style.display = 'none';
+        
+        // 既然是網網約平台，輸入完後照常走第 2 步（去起點）
+        selectSource(finalSource);
+    }
+
     function cancelCurrentTrip() {
         const check = confirm("❌ 確定要取消當前這筆訂單嗎？\n此訂單的數據將會被捨棄，且不作任何歷史紀錄。");
         if (check) {
